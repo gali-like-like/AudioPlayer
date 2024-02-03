@@ -243,6 +243,7 @@ void MainWindow::on_btnStart_clicked()
     {
         if(!player->isSeekable())
         {
+            //isSeekable == true 才可以播放
             qDebug()<<"not seekable ,error:"<<player->errorString();
             return;
         }
