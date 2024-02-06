@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>740</width>
-    <height>374</height>
+    <width>861</width>
+    <height>361</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -15,7 +15,24 @@
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QGridLayout" name="gridLayout">
-    <item row="1" column="1" colspan="3">
+    <item row="1" column="0" rowspan="3">
+     <widget class="QTableView" name="tableView"/>
+    </item>
+    <item row="3" column="3">
+     <widget class="QPushButton" name="btnStop">
+      <property name="text">
+       <string>停止</string>
+      </property>
+     </widget>
+    </item>
+    <item row="3" column="1">
+     <widget class="QPushButton" name="btnStart">
+      <property name="text">
+       <string>开始</string>
+      </property>
+     </widget>
+    </item>
+    <item row="2" column="1" colspan="3">
      <widget class="DragProgressBar" name="progressBar">
       <property name="value">
        <number>0</number>
@@ -31,37 +48,30 @@
       </property>
      </widget>
     </item>
-    <item row="0" column="1" colspan="3">
-     <widget class="QLabel" name="labelArtImage">
-      <property name="text">
-       <string>TextLabel</string>
-      </property>
-      <property name="alignment">
-       <set>Qt::AlignCenter</set>
-      </property>
-     </widget>
-    </item>
-    <item row="2" column="1">
-     <widget class="QPushButton" name="btnStart">
-      <property name="text">
-       <string>开始</string>
-      </property>
-     </widget>
-    </item>
-    <item row="2" column="2">
+    <item row="3" column="2">
      <widget class="QPushButton" name="btnPause">
       <property name="text">
        <string>暂停</string>
       </property>
      </widget>
     </item>
-    <item row="0" column="0" rowspan="3">
-     <widget class="QTableView" name="tableView"/>
+    <item row="0" column="0">
+     <widget class="QLineEdit" name="lineEditSearch">
+      <property name="styleSheet">
+       <string notr="true">QLineEdit QPushButton {backgroun-color:rgb(170, 0, 255)}</string>
+      </property>
+      <property name="clearButtonEnabled">
+       <bool>true</bool>
+      </property>
+     </widget>
     </item>
-    <item row="2" column="3">
-     <widget class="QPushButton" name="btnStop">
+    <item row="0" column="1" rowspan="2" colspan="3">
+     <widget class="QLabel" name="labelArtImage">
       <property name="text">
-       <string>停止</string>
+       <string/>
+      </property>
+      <property name="alignment">
+       <set>Qt::AlignCenter</set>
       </property>
      </widget>
     </item>
@@ -72,7 +82,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>740</width>
+     <width>861</width>
      <height>21</height>
     </rect>
    </property>
@@ -97,6 +107,22 @@
   <action name="actionOpenDir">
    <property name="text">
     <string>打开音频目录</string>
+   </property>
+  </action>
+  <action name="actionEnglish">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>切换英文</string>
+   </property>
+  </action>
+  <action name="actionChinese">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>切换中文</string>
    </property>
   </action>
  </widget>

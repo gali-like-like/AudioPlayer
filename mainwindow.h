@@ -1,11 +1,12 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
-
+#include <Windows.h>
 #include <QMainWindow>
 #include <QDoubleSpinBox>
 #include <QWidgetAction>
 #include <QMediaPlayer>
 #include <QAudioOutput>
+#include <QActionGroup>
 #include <QMediaMetaData>
 #include <QMediaDevices>
 #include <QAudioDevice>
@@ -26,10 +27,24 @@
 #include <QMimeData>
 #include <QCursor>
 #include <QClipboard>
+#include <QStandardPaths>
 #include <QMessageBox>
+#include <iostream>
+#include <QDomDocument>
+#include <QDomElement>
+#include <QDomText>
+#include <QDomDocumentType>
+#include <QFileSystemWatcher>
+#include <QString>
+#include <QTranslator>
+#include <QDomNode>
+#include <QReadWriteLock>
+#include <QMutex>
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
+
+extern void writeLog(const QString& msg,const QString& filePath,const int& lineNumber);
 
 class MainWindow : public QMainWindow
 {
@@ -38,6 +53,7 @@ class MainWindow : public QMainWindow
 public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
+    void setActionLanguageStatus(bool status);
 protected:
     void dragEnterEvent(QDragEnterEvent* e);
     void dropEvent(QDropEvent* e);
@@ -64,10 +80,23 @@ private slots:
     void do_menuTriggered(QAction* action);
     void do_playerBufferProgressChanged(float value);
     void do_playerSeekableChanged(bool status);
+    void do_playerErrorOccurred(QMediaPlayer::Error error, const QString &errorString);
+    void do_configFileChanged(const QString& filePath);
+    void on_actionEnglish_triggered(bool checked);
+
+    void on_lineEditSearch_editingFinished();
+    void on_actionChinese_triggered(bool checked);
+
 private:
+    void initLog();
+    void readConfig();
+    void languageChanged(QString lang);
     void addRow(const QString& path);
     void initRecentMenu();
+    void initConfig();
     Ui::MainWindow *ui;
+    QStringList headers;
+    QStringList headerLanguage;
     QDoubleSpinBox* volumeSpix;
     QDoubleSpinBox* rateSpin;
     QWidgetAction* widgetAction;
@@ -75,12 +104,16 @@ private:
     QAudioOutput* audioOutput;
     QStandardItemModel* dataModel;
     QItemSelectionModel* itemSelectionModel;
-    QMediaFormat mediaFormat;
     QMenu* menuRecent;
     QLabel* labelDuraction;
     QLabel* labelPosition;
     QLabel* labelPath;
     QStringList paths;
-
+    QString musicPath;
+    QString audioFileFormats;
+    QString language;//中文zh_CN,英文en_US
+    QFileSystemWatcher* fileSystemWatcher;
+    QFile configFile;
+    QActionGroup* actionGroup;
 };
 #endif // MAINWINDOW_H

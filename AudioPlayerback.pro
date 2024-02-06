@@ -1,4 +1,4 @@
-QT       += core gui multimedia
+QT       += core gui multimedia xml
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
@@ -21,7 +21,9 @@ FORMS += \
     mainwindow.ui
 
 TRANSLATIONS += \
-    AudioPlayerback_zh_CN.ts
+    AudioPlayerback_zh_CN.ts \
+    AudioPlayerback_en.ts
+
 CONFIG += lrelease
 CONFIG += embed_translations
 

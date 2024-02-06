@@ -6,14 +6,21 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+    actionGroup = new QActionGroup(this);
+    actionGroup->setExclusive(true);
+    actionGroup->addAction(ui->actionChinese);
+    actionGroup->addAction(ui->actionEnglish);
     this->setAcceptDrops(true);
+    this->setWindowTitle(tr("音频播放器"));
+    headers<<"文件名"<<"标题"<<"作者"<<"作曲家"<<"时间";
     ui->tableView->setEditTriggers(QAbstractItemView::EditTrigger::NoEditTriggers);
     ui->tableView->setAcceptDrops(false);
     rateSpin = new QDoubleSpinBox(this);
     rateSpin->setRange(0,30);
     rateSpin->setSingleStep(0.25);
-    rateSpin->setSuffix("倍速");
-    labelPath = new QLabel("文件路径:",this);
+    rateSpin->setSuffix(tr("倍速"));
+    labelPath = new QLabel(this);
+    labelPath->setText(tr("文件路径:"));
     labelDuraction = new QLabel(this);
     labelPosition = new QLabel(this);
     ui->statusbar->addWidget(labelPath,4);
@@ -22,7 +29,7 @@ MainWindow::MainWindow(QWidget *parent)
     volumeSpix = new QDoubleSpinBox(this);
     volumeSpix->setRange(0.00,1.00);
     volumeSpix->setSingleStep(0.01);
-    volumeSpix->setSuffix("音量");
+    volumeSpix->setSuffix(tr("音量"));
     connect(volumeSpix,&QDoubleSpinBox::valueChanged,this,&MainWindow::do_spinValueChanged);
     widgetAction = new QWidgetAction(this);
     QWidgetAction* widgetRateAction = new QWidgetAction(this);
@@ -30,12 +37,15 @@ MainWindow::MainWindow(QWidget *parent)
     widgetAction->setDefaultWidget(volumeSpix);
     ui->menubar->addAction(ui->actionOpenFile);
     ui->menubar->addAction(ui->actionOpenDir);
-    menuRecent = new QMenu("最近打开的文件",this);
+    menuRecent = new QMenu(this);
+    menuRecent->setTitle(tr("最近打开的文件"));
     connect(menuRecent,&QMenu::triggered,this,&MainWindow::do_menuTriggered);
     ui->menubar->addMenu(menuRecent);
     ui->toolBar->addAction(widgetAction);
     ui->toolBar->addSeparator();
     ui->toolBar->addAction(widgetRateAction);
+    ui->toolBar->addAction(ui->actionEnglish);
+    ui->toolBar->addAction(ui->actionChinese);
     player = new QMediaPlayer(this);
     connect(rateSpin,&QDoubleSpinBox::valueChanged,this,&MainWindow::do_playerPlaybackRateChanged);
     QAudioDevice audioDevice = QMediaDevices::defaultAudioOutput();
@@ -46,8 +56,6 @@ MainWindow::MainWindow(QWidget *parent)
     player->setAudioOutput(audioOutput);
     dataModel = new QStandardItemModel(this);
     dataModel->setColumnCount(5);
-    QStringList headers;
-    headers<<"文件名"<<"标题"<<"作者"<<"作曲人"<<"时间";
     for(int i = 0;i<5;i++)
     {
         QStandardItem* item = new QStandardItem();
@@ -57,6 +65,7 @@ MainWindow::MainWindow(QWidget *parent)
         item->setForeground(QBrush(QGradient(QGradient::Preset::BigMango)));
         dataModel->setHorizontalHeaderItem(i,item);
     }
+    configFile.setFileName("./config.xml");
     itemSelectionModel = new QItemSelectionModel(dataModel,this);
     ui->tableView->setModel(dataModel);
     ui->tableView->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -65,6 +74,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->tableView->setSelectionMode(QAbstractItemView::SingleSelection);
     ui->tableView->horizontalHeader()->setResizeContentsPrecision(0);
     ui->tableView->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    musicPath = QStandardPaths::writableLocation(QStandardPaths::MusicLocation);
     connect(player,&QMediaPlayer::playbackStateChanged,this,&MainWindow::do_stateChanged);
     connect(itemSelectionModel,&QItemSelectionModel::currentRowChanged,this,&MainWindow::do_itemSelectionRowChanged);
     connect(player,&QMediaPlayer::positionChanged,this,&MainWindow::do_playerPositionChanged);
@@ -73,7 +83,128 @@ MainWindow::MainWindow(QWidget *parent)
     connect(player,&QMediaPlayer::bufferProgressChanged,this,&MainWindow::do_playerBufferProgressChanged);
     connect(ui->tableView,&QTableView::customContextMenuRequested,this,&MainWindow::do_contextMenuRequested);
     connect(player,&QMediaPlayer::seekableChanged,this,&MainWindow::do_playerSeekableChanged);
+    connect(player,&QMediaPlayer::errorOccurred,this,&MainWindow::do_playerErrorOccurred);
+    fileSystemWatcher = new QFileSystemWatcher(this);
+    fileSystemWatcher->addPath(configFile.fileName());
+    connect(fileSystemWatcher,&QFileSystemWatcher::fileChanged,this,&MainWindow::do_configFileChanged);
     initRecentMenu();
+    initConfig();
+}
+
+void MainWindow::initLog()
+{
+    QDir dirLog("Log");
+    if(!dirLog.exists())
+    {
+        QDir::current().mkdir("Log");
+    }
+}
+
+void MainWindow::do_configFileChanged(const QString& filePath)
+{
+    QFile fileChanged(filePath);
+    if(fileChanged.exists())
+    {
+        this->readConfig();
+    }
+    else
+    {
+        qDebug()<<filePath<<" not exists";
+        writeLog(QString("%1 not exists").arg(filePath),__FILE__,__LINE__);
+    }
+}
+
+void MainWindow::initConfig()
+{
+    if(!configFile.exists())
+    {
+        if(configFile.open(QIODevice::ReadWrite|QIODevice::Text))
+        {
+            QDomDocument* domDocument = new QDomDocument;
+            QDomProcessingInstruction processInstruction = domDocument->createProcessingInstruction("xml", "version=\"1.0\" encoding=\"UTF-8\"");
+            domDocument->appendChild(processInstruction);
+            QDomElement rootElement = domDocument->createElement("Document");
+            domDocument->appendChild(rootElement);
+            QDomElement musicPathElement = domDocument->createElement("musicPath");
+            rootElement.appendChild(musicPathElement);
+            QDomText musicPathNode = domDocument->createTextNode(musicPath);
+            musicPathElement.appendChild(musicPathNode);
+            QDomComment languageComment = domDocument->createComment("Chinese choose zh_CN, English choose en_US");
+            rootElement.appendChild(languageComment);
+            QDomElement languageElement = domDocument->createElement("language");
+            rootElement.appendChild(languageElement);
+            QDomText languageNode = domDocument->createTextNode("zh_CN");
+            languageElement.appendChild(languageNode);
+            QDomElement audioFileFormatsElement = domDocument->createElement("audioFileFormats");
+            QDomComment fileFormatComment = domDocument->createComment("File formats are separated by spaces");
+            rootElement.appendChild(fileFormatComment);
+            rootElement.appendChild(audioFileFormatsElement);
+            audioFileFormats = QString("*.mp3 *.flac *.webm *.aac *.quicktime *.mpeg4audio");
+            QDomText fileFormatsNode = domDocument->createTextNode(audioFileFormats);
+            audioFileFormatsElement.appendChild(fileFormatsNode);
+            QByteArray xmlData = domDocument->toByteArray(4);
+            delete domDocument;
+            configFile.write(xmlData);
+            configFile.close();
+        }
+    }
+    else
+        this->readConfig();
+}
+
+void MainWindow::readConfig()
+{
+    /**
+     * QDomDocument::elementById 功能无法实现
+    */
+    if(configFile.exists())
+    {
+        if(!configFile.open(QIODevice::ReadOnly))
+        {
+            writeLog(QString("./config.xml not open,error:%1").arg(configFile.errorString()),__FILE__,__LINE__);
+            return;
+        }
+        QDomDocument doc;
+        QString errorMsg;
+        int errorRow = 0;
+        int errorCOl = 0;
+        if (!doc.setContent(&configFile)) {
+            writeLog(QString("./config.xml not read,in %1,%2 error:").arg(errorRow).arg(errorCOl).arg(errorMsg),__FILE__,__LINE__);
+            configFile.close();
+            return;
+        }
+        musicPath = doc.elementsByTagName("musicPath").at(0).firstChild().nodeValue();
+        QString changeLanguage = doc.elementsByTagName("language").at(0).firstChild().nodeValue();
+        audioFileFormats = doc.elementsByTagName("audioFileFormats").at(0).firstChild().nodeValue();
+        qDebug()<<"music path:"<<musicPath<<" language:"<<language<<" audio formats:"<<audioFileFormats;
+        configFile.close();
+        if(changeLanguage != language)
+        {
+            language = changeLanguage;
+            this->languageChanged(changeLanguage);
+        }
+    }
+}
+
+void MainWindow::languageChanged(QString lang)
+{
+    if(lang == "zh_CN")
+    {
+        this->on_actionChinese_triggered(true);
+    }
+    else if(lang == "en_US")
+    {
+        this->on_actionEnglish_triggered(true);
+    }
+};
+
+void MainWindow::do_playerErrorOccurred(QMediaPlayer::Error error, const QString &errorString)
+{
+    if(error!=QMediaPlayer::Error::NoError)
+    {
+        writeLog(QString("playerback error:%1").arg(errorString),__FILE__,__LINE__);
+        qDebug()<<"path:"<<player->source()<<" error:"<<errorString;
+    }
 }
 
 void MainWindow::do_playerSeekableChanged(bool status)
@@ -90,15 +221,15 @@ void MainWindow::do_contextMenuRequested(const QPoint& pos)
 {
     Q_UNUSED(pos);
     QPoint cursorPoint = QCursor::pos();
-    QPoint tablePoint = this->mapFromGlobal(cursorPoint);
+    QPoint tablePoint = ui->tableView->mapFromGlobal(cursorPoint);
     qDebug()<<"table rect:"<<ui->tableView->rect();
     qDebug()<<"widget point:"<<tablePoint;
     if(ui->tableView->rect().contains(tablePoint) && dataModel->rowCount()!=0)
     {
         QMenu* menu = new QMenu(this);
-        QAction* actionCopyPath = new QAction("复制路径",this);
-        QAction* actionRemove = new QAction("删除",this);
-        QAction* actionClear = new QAction("清空",this);
+        QAction* actionCopyPath = new QAction(tr("复制路径"),this);
+        QAction* actionRemove = new QAction(tr("删除"),this);
+        QAction* actionClear = new QAction(tr("清空"),this);
         connect(actionClear,&QAction::triggered,this,&MainWindow::do_actionClearTriggered);
         connect(actionCopyPath,&QAction::triggered,this,&MainWindow::do_actionCopyTriggered);
         connect(actionRemove,&QAction::triggered,this,&MainWindow::do_actionRemoveTriggered);
@@ -113,11 +244,23 @@ void MainWindow::do_actionClearTriggered()
 {
     itemSelectionModel->clearSelection();
     player->setSource(QUrl());
-    labelPath->setText("文件路径:");
+    labelPath->setText(QCoreApplication::translate("MainWindow","文件路径:"));
     labelDuraction->setText("");
     labelPosition->setText("");
     dataModel->clear();
 }
+
+void MainWindow::setActionLanguageStatus(bool status)
+{
+    if(status)
+    {
+        ui->actionEnglish->setChecked(true);
+    }
+    else
+    {
+        ui->actionChinese->setChecked(true);
+    }
+};
 
 void MainWindow::do_actionCopyTriggered()
 {
@@ -144,9 +287,8 @@ void MainWindow::do_actionRemoveTriggered()
         {
             QItemSelection itemSelection;
             itemSelection.select(dataModel->index(row,0),dataModel->index(row,4));
-            itemSelectionModel->select(itemSelection,QItemSelectionModel::ToggleCurrent);
             itemSelectionModel->setCurrentIndex(dataModel->index(row,0),QItemSelectionModel::ToggleCurrent);
-//            this->do_itemSelectionRowChanged(dataModel->index(row,0),currentIndex);
+            itemSelectionModel->select(itemSelection,QItemSelectionModel::ToggleCurrent);
         }
     }
 }
@@ -156,7 +298,8 @@ void MainWindow::do_playerSourceChanged(const QUrl& url)
     if(url.isLocalFile())
     {
         QString filePath = url.toLocalFile();
-        labelPath->setText(QString(tr("文件路径:%1").arg(filePath)));
+        QString filePathMsg = QCoreApplication::translate("MainWindow","文件路径:")+filePath;
+        labelPath->setText(filePathMsg);
     }
 }
 
@@ -245,10 +388,9 @@ void MainWindow::on_btnStart_clicked()
         {
             //isSeekable == true 才可以播放
             qDebug()<<"not seekable ,error:"<<player->errorString();
+            writeLog(QString("now %1 not play,error:%2").arg(player->source().toLocalFile()).arg(player->errorString()),__FILE__,__LINE__);
             return;
         }
-        bool ok = mediaFormat.isSupported(QMediaFormat::Decode);
-        qDebug()<<"support ogg decord?"<<ok;
         player->play();
     }
 }
@@ -263,7 +405,7 @@ void MainWindow::on_btnPause_clicked()
 
 void MainWindow::closeEvent(QCloseEvent* e)
 {
-    QMessageBox::Button btn = QMessageBox::question(this,tr("询问"),"你确定要关闭吗？",QMessageBox::Yes|
+    QMessageBox::Button btn = QMessageBox::question(this,tr("询问"),tr("你确定要关闭吗？"),QMessageBox::Yes|
                                                     QMessageBox::No,QMessageBox::Yes);
     if(btn==QMessageBox::Yes)
     {
@@ -290,6 +432,39 @@ void MainWindow::closeEvent(QCloseEvent* e)
             }
             fileRecent.close();
         }
+
+        if(configFile.open(QIODevice::ReadOnly|QIODevice::Text))
+        {
+            QByteArray fileData = configFile.readAll();
+            configFile.close();
+            QDomDocument doc;
+            QString errorMsg;
+            int errorRow;
+            int errorColumn;
+            bool ok = doc.setContent(fileData,&errorMsg,&errorRow,&errorColumn);
+            if(ok)
+            {
+                QDomElement languageElement = doc.elementsByTagName("language").at(0).toElement();
+
+                languageElement.firstChild().setNodeValue(language);
+                QByteArray data = doc.toByteArray(4);
+
+                if(configFile.open(QIODevice::WriteOnly))
+                {
+                    configFile.write(data);
+                    configFile.close();
+                }
+                else
+                {
+                    writeLog(QString("./config.xml cannot read open fail,error:%1").arg(configFile.errorString()),__FILE__,__LINE__);
+                }
+            }
+            else
+            {
+                writeLog(QString("./config.xml in %1,%2 space error:%3").arg(errorRow).arg(errorColumn).arg(errorMsg),__FILE__,__LINE__);
+                qDebug()<<"row:"<<errorRow<<" col:"<<errorColumn<<" error:"<<errorMsg;
+            }
+        }
         e->accept();
     }
     else
@@ -299,9 +474,10 @@ void MainWindow::closeEvent(QCloseEvent* e)
 void MainWindow::on_actionOpenFile_triggered()
 {
     QString filePath = QFileDialog::getOpenFileName(this,tr("文件选择框"),
-    "E:\\QQMusicDown","Audio File (*.mp3 *.flac *.webm *.aac *.quicktime *.mpeg4audio)");
+    musicPath,QString("Audio File (%1)").arg(audioFileFormats));
     if(filePath.isEmpty())
     {
+        writeLog(QString("%1 is empty").arg(filePath),__FILE__,__LINE__);
         return;
     }
     this->addRow(filePath);
@@ -317,9 +493,10 @@ void MainWindow::on_btnStop_clicked()
 
 void MainWindow::on_actionOpenDir_triggered()
 {
-    QString dirPath = QFileDialog::getExistingDirectory(this,tr("目录选择框"),"E:\\QQMusicDown");
+    QString dirPath = QFileDialog::getExistingDirectory(this,tr("目录选择框"),musicPath);
     if(dirPath.isEmpty())
     {
+        writeLog(QString("%1 is empty").arg(dirPath),__FILE__,__LINE__);
         return;
     }
     QDir dir(dirPath);
@@ -328,7 +505,6 @@ void MainWindow::on_actionOpenDir_triggered()
     QFileInfoList audioFileInfos = dir.
                                    entryInfoList(
         fileSuffexs,QDir::Filter::Files|QDir::NoSymLinks|QDir::NoDotAndDotDot,QDir::SortFlag::Time);
-    qDebug()<<"files："<<audioFileInfos;
     foreach(auto audioFileInfo,audioFileInfos)
     {
         QString filePath = audioFileInfo.absoluteFilePath();
@@ -340,14 +516,13 @@ void MainWindow::addRow(const QString& path)
 {
     QFileInfo fileInfo(path);
     QString fileName = fileInfo.fileName();
-    player->setSource(QUrl::fromLocalFile(fileName));
+    player->setSource(QUrl::fromLocalFile(path));
     QMediaMetaData fileMeta = player->metaData();
     QString title = fileMeta.stringValue(QMediaMetaData::AlbumTitle);
     QString author = fileMeta.stringValue(QMediaMetaData::Author);
     QString composer = fileMeta.stringValue(QMediaMetaData::Composer);
     QString date = fileMeta.stringValue(QMediaMetaData::Date);
     QVariant imageVariant = fileMeta.value(QMediaMetaData::ThumbnailImage);
-    qDebug()<<"image variant is valid?"<<imageVariant.isValid();
     if(imageVariant.isValid())
     {
         QImage coverImage = imageVariant.value<QImage>();
@@ -372,7 +547,7 @@ void MainWindow::addRow(const QString& path)
     {
         itemSelectionModel->clearSelection();
     }
-    itemSelectionModel->select(itemSelection,QItemSelectionModel::Current);
+    itemSelectionModel->select(itemSelection,QItemSelectionModel::ToggleCurrent);
 };
 
 void MainWindow::dragEnterEvent(QDragEnterEvent* e)
@@ -419,6 +594,7 @@ void MainWindow::initRecentMenu()
     }
     if(!dir.exists("songs.txt"))
     {
+        writeLog(QString("%1 is not exists").arg(dir.absoluteFilePath("songs.txt")),__FILE__,__LINE__);
         return;
     }
     else
@@ -434,18 +610,24 @@ void MainWindow::initRecentMenu()
             textStream.setRealNumberPrecision(2);
             textStream.setIntegerBase(10);
             QString fileContext = textStream.readAll();
-            qDebug()<<"file context:"<<fileContext;
             file.close();
             QStringList filePaths = fileContext.split("\n");
             for(auto filePath:filePaths)
             {
-                QAction* filePathAction = new QAction(filePath,this);
-                menuRecent->addAction(filePathAction);
+                if(filePath.isEmpty())
+                {
+                    continue;
+                }
+                else
+                {
+                    QAction* filePathAction = new QAction(filePath,this);
+                    menuRecent->addAction(filePathAction);
+                }
             }
         }
         else
         {
-            qDebug()<<"songs.txt 打开失败";
+            writeLog(QString("%1 open fail,error:%2").arg(absoultFilePath).arg(file.errorString()),__FILE__,__LINE__);
         }
     }
 }
@@ -456,6 +638,88 @@ void MainWindow::do_menuTriggered(QAction* action)
     {
         QString actionText = action->text();
         this->addRow(actionText);
+    }
+}
+
+extern QTranslator translator;
+
+void MainWindow::on_lineEditSearch_editingFinished()
+{
+    QString text = ui->lineEditSearch->text();
+    QList<QStandardItem*> items = dataModel->findItems(text,Qt::MatchExactly);
+    if(items.isEmpty())
+    {
+        QMessageBox::information(this,tr("提示"),tr("找不到该音乐"));
+
+        return;
+    }
+    else
+    {
+        QStandardItem* item = items.at(0);
+        int itemRow = item->row();
+        QItemSelection itemSelection;
+        itemSelection.select(dataModel->index(itemRow,0),dataModel->index(itemRow,4));
+        itemSelectionModel->setCurrentIndex(dataModel->index(itemRow,0),QItemSelectionModel::ToggleCurrent);
+        itemSelectionModel->select(itemSelection,QItemSelectionModel::ToggleCurrent);
+        ui->tableView->scrollTo(dataModel->indexFromItem(item));
+    }
+}
+
+void MainWindow::on_actionEnglish_triggered(bool checked)
+{
+    if(checked)
+    {
+        qDebug()<<"英文";
+        if(translator.load(":/i18n/AudioPlayerback_en.qm"))
+        {
+            ui->retranslateUi(this);
+            QString text = translator.translate("MainWindow","最近打开的文件");
+            menuRecent->setTitle(text);
+            for(int i = 0;i<5;i++)
+            {
+                qDebug()<<"en_US cStr:"<<headers.at(i).toStdString().c_str();
+                QString translaorText = translator.translate("MainWindow",headers.at(i).toStdString().c_str());
+                qDebug()<<"en_US translator text:"<<translaorText;
+                dataModel->horizontalHeaderItem(i)->setText(translator.translate("MainWindow",headers.at(i).toStdString().c_str()));
+            }
+            volumeSpix->setSuffix(translator.translate("MainWindow","音量"));
+            rateSpin->setSuffix(translator.translate("MainWindow","倍速"));
+            language = translator.language();
+        }
+        else
+        {
+            qDebug()<<":/i18n/AudioPlayerback_en.qm加载失败";
+            writeLog(":/i18n/AudioPlayerback_en.qm加载失败",__FILE__,__LINE__);
+        }
+    }
+}
+
+void MainWindow::on_actionChinese_triggered(bool checked)
+{
+    if(checked)
+    {
+        qDebug()<<"中文";
+        if(translator.load(":/i18n/AudioPlayerback_zh_CN.qm"))
+        {
+            ui->retranslateUi(this);
+            QString text = translator.translate("MainWindow","最近打开的文件");
+            qDebug()<<"translator："<<text;
+            menuRecent->setTitle(text);
+            for(int i = 0;i<5;i++)
+            {
+                qDebug()<<"zh_CN cStr:"<<headers.at(i).toStdString().c_str();
+                QString translaorText = translator.translate("MainWindow",headers.at(i).toStdString().c_str());
+                qDebug()<<"zh_CN translator text:"<<translaorText;
+                dataModel->horizontalHeaderItem(i)->setText(translator.translate("MainWindow",headers.at(i).toStdString().c_str()));
+            }
+            volumeSpix->setSuffix(translator.translate("MainWindow","音量"));
+            rateSpin->setSuffix(translator.translate("MainWindow","倍速"));
+            language = translator.language();
+        }
+        else
+        {
+            writeLog(":/i18n/AudioPlayerback_zh_CN.qm加载失败",__FILE__,__LINE__);
+        }
     }
 }
 
