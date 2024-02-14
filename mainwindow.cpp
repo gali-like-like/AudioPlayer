@@ -178,11 +178,7 @@ void MainWindow::readConfig()
         audioFileFormats = doc.elementsByTagName("audioFileFormats").at(0).firstChild().nodeValue();
         qDebug()<<"music path:"<<musicPath<<" language:"<<language<<" audio formats:"<<audioFileFormats;
         configFile.close();
-        if(changeLanguage != language)
-        {
-            language = changeLanguage;
-            this->languageChanged(changeLanguage);
-        }
+        this->languageChanged(changeLanguage);
     }
 }
 

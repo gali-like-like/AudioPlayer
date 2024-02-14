@@ -19,7 +19,7 @@ void writeLog(const QString& msg,const QString& filePath,const int& lineNumber)
     QFile file(QString("./Log/%1error.txt").arg(nowDate));
     if(file.open(QIODevice::WriteOnly|QIODevice::Append))
     {
-        QString complete = QString("%1 %2%3 msg:%4\n").arg(nowTime).arg(filePath).arg(lineNumber).arg(msg);
+        QString complete = QString("%1 %2%3行 %4\n").arg(nowTime).arg(filePath).arg(lineNumber).arg(msg);
         file.write(complete.toUtf8());
         file.close();
     }
