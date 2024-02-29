@@ -83,7 +83,7 @@ private slots:
     void do_playerErrorOccurred(QMediaPlayer::Error error, const QString &errorString);
     void do_configFileChanged(const QString& filePath);
     void on_actionEnglish_triggered(bool checked);
-
+    void do_metaDataChanged();
     void on_lineEditSearch_editingFinished();
     void on_actionChinese_triggered(bool checked);
 

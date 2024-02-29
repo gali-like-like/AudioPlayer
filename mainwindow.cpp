@@ -84,11 +84,39 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->tableView,&QTableView::customContextMenuRequested,this,&MainWindow::do_contextMenuRequested);
     connect(player,&QMediaPlayer::seekableChanged,this,&MainWindow::do_playerSeekableChanged);
     connect(player,&QMediaPlayer::errorOccurred,this,&MainWindow::do_playerErrorOccurred);
+    connect(player,&QMediaPlayer::metaDataChanged,this,&MainWindow::do_metaDataChanged);
     fileSystemWatcher = new QFileSystemWatcher(this);
     fileSystemWatcher->addPath(configFile.fileName());
     connect(fileSystemWatcher,&QFileSystemWatcher::fileChanged,this,&MainWindow::do_configFileChanged);
     initRecentMenu();
     initConfig();
+}
+
+void MainWindow::do_metaDataChanged()
+{
+    QMediaMetaData metaData = player->metaData();
+    QImage thunmImage = metaData.value(QMediaMetaData::ThumbnailImage).value<QImage>();
+    QImage scaledImage = thunmImage.scaled(ui->labelArtImage->size(),Qt::KeepAspectRatio);
+    ui->labelArtImage->setPixmap(QPixmap::fromImage(scaledImage));
+    QString title = metaData.stringValue(QMediaMetaData::Title);
+    QString author = metaData.stringValue(QMediaMetaData::Author);
+    QString composer = metaData.stringValue(QMediaMetaData::Composer);
+    QString nowTime = metaData.stringValue(QMediaMetaData::Date);
+    qDebug()<<"metaData:"<<title<<" "<<author<<" "<<composer<<" "<<nowTime;
+    QModelIndex index  = itemSelectionModel->currentIndex();
+    if(!index.isValid())
+    {
+        writeLog("index is invalid",__FILE__,__LINE__);
+        return;
+    }
+    int row = index.row();
+    if(dataModel->item(row,1) != nullptr)
+    {
+        dataModel->item(row,1)->setText(title);
+        dataModel->item(row,2)->setText(author);
+        dataModel->item(row,3)->setText(composer);
+        dataModel->item(row,4)->setText(nowTime);
+    }
 }
 
 void MainWindow::initLog()
@@ -176,7 +204,7 @@ void MainWindow::readConfig()
         musicPath = doc.elementsByTagName("musicPath").at(0).firstChild().nodeValue();
         QString changeLanguage = doc.elementsByTagName("language").at(0).firstChild().nodeValue();
         audioFileFormats = doc.elementsByTagName("audioFileFormats").at(0).firstChild().nodeValue();
-        qDebug()<<"music path:"<<musicPath<<" language:"<<language<<" audio formats:"<<audioFileFormats;
+        qDebug()<<"music path:"<<musicPath<<" language:"<<changeLanguage<<" audio formats:"<<audioFileFormats;
         configFile.close();
         this->languageChanged(changeLanguage);
     }
@@ -324,19 +352,20 @@ void MainWindow::do_playerPositionChanged(qint64 position)
 
 void MainWindow::do_spinValueChanged(double value)
 {
-    audioOutput->setVolume(value);
+    float actualVolume = QAudio::convertVolume(value,QAudio::LogarithmicVolumeScale,QAudio::LinearVolumeScale);
+    audioOutput->setVolume(actualVolume);
 }
 
 void MainWindow::do_itemSelectionRowChanged(const QModelIndex& current,const QModelIndex& previous)
 {
-    this->on_btnStop_clicked();
     if(current.isValid())
     {
         QStandardItem* item = dataModel->itemFromIndex(current);
         QString locationPath = item->data(Qt::UserRole).toString();
-        QImage thumbnailImage = item->data().value<QImage>();
-        ui->labelArtImage->setPixmap(QPixmap::fromImage(thumbnailImage));
+        qDebug()<<"当前选择路径："<<locationPath;
+        qDebug()<<"当前item位置:"<<current.row()<<" "<<current.column();
         player->setSource(QUrl::fromLocalFile(locationPath));
+        player->play();
     }
 }
 
@@ -373,6 +402,7 @@ MainWindow::~MainWindow()
 
 void MainWindow::on_progressBar_valueChanged(int value)
 {
+    qDebug()<<"滚动条当前值:"<<value;
     player->setPosition(value);
 }
 
@@ -387,6 +417,13 @@ void MainWindow::on_btnStart_clicked()
             writeLog(QString("now %1 not play,error:%2").arg(player->source().toLocalFile()).arg(player->errorString()),__FILE__,__LINE__);
             return;
         }
+//        QModelIndex currentIndex = itemSelectionModel->currentIndex();
+//        if(!currentIndex.isValid())
+//        {
+//            return;
+//        }
+//        QString filePath = dataModel->data(currentIndex,Qt::UserRole).toString();
+//        player->setSource(QUrl::fromLocalFile(filePath));
         player->play();
     }
 }
@@ -513,27 +550,18 @@ void MainWindow::addRow(const QString& path)
     QFileInfo fileInfo(path);
     QString fileName = fileInfo.fileName();
     player->setSource(QUrl::fromLocalFile(path));
-    QMediaMetaData fileMeta = player->metaData();
-    QString title = fileMeta.stringValue(QMediaMetaData::AlbumTitle);
-    QString author = fileMeta.stringValue(QMediaMetaData::Author);
-    QString composer = fileMeta.stringValue(QMediaMetaData::Composer);
-    QString date = fileMeta.stringValue(QMediaMetaData::Date);
-    QVariant imageVariant = fileMeta.value(QMediaMetaData::ThumbnailImage);
-    if(imageVariant.isValid())
-    {
-        QImage coverImage = imageVariant.value<QImage>();
-        QPixmap pixmap = QPixmap::fromImage(coverImage);
-        QPixmap scaledPix = pixmap.scaled(ui->labelArtImage->sizeHint());
-        ui->labelArtImage->setPixmap(scaledPix);
-    }
     QStandardItem* itemFileName = new QStandardItem(fileName);
-    itemFileName->setData(path,Qt::UserRole);
-    QStandardItem* itemTitle = new QStandardItem(title);
-    QStandardItem* itemAuthor = new QStandardItem(author);
-    QStandardItem* itemComposer = new QStandardItem(composer);
-    QStandardItem* itemDuraction = new QStandardItem(date);
+    QStandardItem* itemTitle = new QStandardItem("");
+    QStandardItem* itemAuthor = new QStandardItem("");
+    QStandardItem* itemComposer = new QStandardItem("");
+    QStandardItem* itemDuraction = new QStandardItem("");
+
     QList<QStandardItem*> items;
     items<<itemFileName<<itemTitle<<itemAuthor<<itemComposer<<itemDuraction;
+    for(auto item:items)
+    {
+        item->setData(path,Qt::UserRole);
+    }
     dataModel->appendRow(items);
     QModelIndex firstIndex = dataModel->indexFromItem(itemFileName);
     QModelIndex lastIndex = dataModel->indexFromItem(itemDuraction);
